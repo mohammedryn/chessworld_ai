@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 import cv2
-import chess
 
 
 @pytest.fixture
