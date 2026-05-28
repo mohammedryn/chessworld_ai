@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-MOTION_THRESHOLD = 5.0
+MOTION_THRESHOLD = 0.5
 
 
 class ChangeDetector:
@@ -15,9 +15,13 @@ class ChangeDetector:
             self._prev_gray = gray
             return True
 
-        # Use frame differencing to detect change
-        diff = cv2.absdiff(self._prev_gray, gray)
-        changed = float(diff.mean()) > self.threshold
+        flow = cv2.calcOpticalFlowFarneback(
+            self._prev_gray, gray, None,
+            pyr_scale=0.5, levels=3, winsize=15,
+            iterations=3, poly_n=5, poly_sigma=1.2, flags=0,
+        )
+        magnitude = np.sqrt(flow[..., 0] ** 2 + flow[..., 1] ** 2)
+        changed = float(magnitude.mean()) > self.threshold
         self._prev_gray = gray
         return changed
 

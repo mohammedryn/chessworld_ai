@@ -17,9 +17,12 @@ def test_identical_frames_return_false():
 
 
 def test_different_frames_return_true():
+    # Optical flow needs texture — uniform frames have no gradient so flow is always zero.
+    # Use seeded random frames to simulate realistic pixel variance.
     detector = ChangeDetector()
-    frame_a = np.zeros((480, 640, 3), dtype=np.uint8)
-    frame_b = np.full((480, 640, 3), 200, dtype=np.uint8)
+    rng = np.random.default_rng(42)
+    frame_a = rng.integers(0, 128, (480, 640, 3), dtype=np.uint8)
+    frame_b = rng.integers(128, 256, (480, 640, 3), dtype=np.uint8)
     detector.has_changed(frame_a)
     assert detector.has_changed(frame_b) is True
 
