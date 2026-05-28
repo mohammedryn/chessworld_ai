@@ -5,11 +5,17 @@ from src.state_machine import BoardStateMachine
 
 
 def _feed_state(sm, state, count=3):
-    """Feed the same state count times to fill the sliding window."""
-    move = None
+    """Feed the same state count times. Returns the first move detected (if any).
+
+    A move is emitted exactly once by the state machine; feeding the same state
+    again after commit returns None. This helper preserves the first non-None result.
+    """
+    detected = None
     for _ in range(count):
-        move = sm.update(state)
-    return move
+        result = sm.update(state)
+        if result is not None:
+            detected = result
+    return detected
 
 
 def test_no_move_when_window_not_full(starting_board_state):
