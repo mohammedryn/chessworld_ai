@@ -18,15 +18,14 @@ class BoardDetector:
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
         frame_area = frame.shape[0] * frame.shape[1]
-        min_area = 0.08 * frame_area
-        max_area = 0.95 * frame_area  # reject contours that span nearly the whole image
+        min_area = 0.05 * frame_area
+        max_area = 0.95 * frame_area
         best_quad = None
         best_area = 0.0
 
-        # Try simple threshold first (works well for high-contrast boards)
         for thresh_method in ['simple', 'adaptive']:
             if thresh_method == 'simple':
-                _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY)
+                _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             else:
                 thresh = cv2.adaptiveThreshold(
                     blurred, 255,
@@ -42,17 +41,36 @@ class BoardDetector:
                 area = cv2.contourArea(contour)
                 if area < min_area or area > max_area:
                     continue
+
+                # Try progressively looser epsilon until we get 4 corners
                 peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
-                if len(approx) != 4:
+                quad = None
+                for eps_factor in [0.02, 0.04, 0.06, 0.08, 0.10]:
+                    approx = cv2.approxPolyDP(contour, eps_factor * peri, True)
+                    if len(approx) == 4:
+                        quad = approx.reshape(4, 2).astype(np.float32)
+                        break
+
+                # Fallback: convex hull → fit to 4-point rectangle
+                if quad is None:
+                    hull = cv2.convexHull(contour)
+                    hull_peri = cv2.arcLength(hull, True)
+                    for eps_factor in [0.02, 0.05, 0.08, 0.12]:
+                        approx = cv2.approxPolyDP(hull, eps_factor * hull_peri, True)
+                        if len(approx) == 4:
+                            quad = approx.reshape(4, 2).astype(np.float32)
+                            break
+
+                if quad is None:
                     continue
-                x, y, w, h = cv2.boundingRect(approx)
+
+                x, y, w, h = cv2.boundingRect(quad)
                 aspect = w / h if h > 0 else 0
-                if not (0.6 < aspect < 1.6):
+                if not (0.5 < aspect < 2.0):
                     continue
                 if area > best_area:
                     best_area = area
-                    best_quad = approx.reshape(4, 2).astype(np.float32)
+                    best_quad = quad
 
             if best_quad is not None:
                 break
@@ -64,11 +82,11 @@ class BoardDetector:
     def _sort_corners(self, pts: np.ndarray) -> np.ndarray:
         rect = np.zeros((4, 2), dtype=np.float32)
         s = pts.sum(axis=1)
-        rect[0] = pts[np.argmin(s)]   # TL: smallest x+y
-        rect[2] = pts[np.argmax(s)]   # BR: largest x+y
+        rect[0] = pts[np.argmin(s)]   # TL
+        rect[2] = pts[np.argmax(s)]   # BR
         diff = np.diff(pts, axis=1).ravel()
-        rect[1] = pts[np.argmin(diff)]  # TR: smallest y-x
-        rect[3] = pts[np.argmax(diff)]  # BL: largest y-x
+        rect[1] = pts[np.argmin(diff)]  # TR
+        rect[3] = pts[np.argmax(diff)]  # BL
         return rect
 
     def get_homography(self, corners: np.ndarray) -> np.ndarray:

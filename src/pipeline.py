@@ -60,8 +60,11 @@ class ChessVisionPipeline:
                 f"Cannot open video: {video_path}. Check the file path and codec."
             )
 
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        raw_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        # Phone videos often have corrupt frame count metadata — cap at 2 hours
+        MAX_SANE_FRAMES = int(fps * 7200)
+        total_frames = raw_frame_count if 0 < raw_frame_count < MAX_SANE_FRAMES else None
 
         pgn_writer = PGNWriter()
         demo_writer = self._make_demo_writer(cap, save_demo, fps) if save_demo else None
@@ -74,7 +77,7 @@ class ChessVisionPipeline:
         conf_samples: list[float] = []
         frame_idx = 0
 
-        with tqdm(total=total_frames, desc=Path(video_path).name) as pbar:
+        with tqdm(total=total_frames, desc=Path(video_path).name, unit="frame") as pbar:
             while True:
                 ret, frame = cap.read()
                 if not ret:
