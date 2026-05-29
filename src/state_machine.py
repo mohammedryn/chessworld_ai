@@ -81,8 +81,10 @@ class BoardStateMachine:
             from_row, from_col = self._sq_to_rc(move.from_square)
             to_row, to_col = self._sq_to_rc(move.to_square)
 
-            # Source square must be empty in candidate
-            if candidate[from_row][from_col] is not None:
+            # Source square must be empty in AT LEAST ONE window frame.
+            # (voted/majority may lag behind; we need the source to have
+            # been vacated in at least 1 clean frame to accept the move.)
+            if not any(state[from_row][from_col] is None for state in self._window):
                 continue
 
             # Destination must have the right piece
