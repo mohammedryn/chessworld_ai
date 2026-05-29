@@ -10,13 +10,24 @@ class BoardStateMachine:
     def __init__(self, window_size: int = 3):
         self._window: deque = deque(maxlen=window_size)
         self._window_size = window_size
-        self._committed: Optional[BoardState] = None
-        self._chess_board = chess.Board()
         self._flipped = False
+        self._chess_board = chess.Board()
+        self._committed: Optional[BoardState] = None
+
+    def _get_starting_board_state(self) -> BoardState:
+        board = np.full((8, 8), None, dtype=object)
+        starting_board = chess.Board()
+        for sq in chess.SQUARES:
+            piece = starting_board.piece_at(sq)
+            if piece is not None:
+                row, col = self._sq_to_rc(sq)
+                board[row][col] = (piece.symbol(), 1.0)
+        return board
 
     def set_orientation(self, flipped: bool):
         """Call once at game start. flipped=True when black is at bottom of warped image."""
         self._flipped = flipped
+        self._committed = None
 
     def update(self, board_state: BoardState) -> Optional[chess.Move]:
         self._window.append(board_state)
@@ -26,7 +37,11 @@ class BoardStateMachine:
         voted = self._vote()
 
         if self._committed is None:
-            self._committed = voted
+            # Dynamic committed initialization based on occupancy match and minimum piece count
+            num_pieces = sum(1 for r in range(8) for c in range(8) if voted[r][c] is not None)
+            score = self._match_score(self._chess_board, voted)
+            if num_pieces >= 12 and score >= 42:
+                self._committed = voted
             return None
 
         if self._boards_equal(voted, self._committed):
@@ -87,11 +102,11 @@ class BoardStateMachine:
             if not any(state[from_row][from_col] is None for state in self._window):
                 continue
 
-            # Destination must have the right piece
+            # Relaxed check: Destination must be occupied if expected to have a piece
             dest_piece = test.piece_at(move.to_square)
-            expected_dest = dest_piece.symbol() if dest_piece else None
-            detected_dest = candidate[to_row][to_col][0] if candidate[to_row][to_col] else None
-            if expected_dest != detected_dest:
+            expected_occupied = (dest_piece is not None)
+            detected_occupied = (candidate[to_row][to_col] is not None)
+            if expected_occupied != detected_occupied:
                 continue
 
             # Total unexpected vacations (excluding this move's source) must be tolerable
@@ -105,7 +120,7 @@ class BoardStateMachine:
                 best_score = score
                 best_move = move
 
-        return best_move if best_score >= 56 else None
+        return best_move if best_score >= 46 else None
 
     def _sq_to_rc(self, sq: int) -> tuple[int, int]:
         """Convert python-chess square to (row, col) in detected board coordinates."""
@@ -133,14 +148,14 @@ class BoardStateMachine:
                 else:
                     sq = chess.square(col, 7 - row)
                 piece = chess_board.piece_at(sq)
-                expected = piece.symbol() if piece else None
-                detected_code = detected[row][col][0] if detected[row][col] is not None else None
-                if expected == detected_code:
+                expected_occupied = (piece is not None)
+                detected_occupied = (detected[row][col] is not None)
+                if expected_occupied == detected_occupied:
                     matches += 1
         return matches
 
     def _position_matches(self, chess_board: chess.Board, detected: BoardState) -> bool:
-        return self._match_score(chess_board, detected) >= 56
+        return self._match_score(chess_board, detected) >= 42
 
     @property
     def chess_board(self) -> chess.Board:

@@ -16,18 +16,24 @@ BoardState = np.ndarray
 
 
 class PieceDetector:
-    def __init__(self, model_path: str, confidence: float = 0.4):
+    def __init__(self, model_path: str, confidence: float = 0.25):
         self.model = YOLO(model_path)
         self.confidence = confidence
 
     @staticmethod
-    def center_to_square(cx: float, cy: float, square_size: int = SQUARE_SIZE) -> tuple[int, int]:
+    def center_to_square(cx: float, cy: float, square_size: float = SQUARE_SIZE, border_margin: float = 0.0) -> tuple[int, int]:
         """Map detection center (x, y) in warped 640x640 image to (row, col) on 8x8 grid."""
-        col = min(int(cx // square_size), 7)
-        row = min(int(cy // square_size), 7)
+        cx_adj = cx - border_margin
+        cy_adj = cy - border_margin
+        
+        active_size = 640.0 - 2.0 * border_margin
+        adj_square_size = active_size / 8.0
+        
+        col = max(0, min(int(cx_adj // adj_square_size), 7))
+        row = max(0, min(int(cy_adj // adj_square_size), 7))
         return row, col
 
-    def detect(self, warped: np.ndarray) -> BoardState:
+    def detect(self, warped: np.ndarray, border_margin: float = 0.0) -> BoardState:
         """Run YOLO on warped 640x640 board image; return 8x8 BoardState."""
         board: BoardState = np.full((8, 8), None, dtype=object)
         results = self.model(warped, conf=self.confidence, verbose=False)[0]
@@ -40,8 +46,8 @@ class PieceDetector:
             if piece_code is None:
                 continue
             cx = (x1 + x2) / 2
-            cy = (y1 + y2) / 2
-            row, col = PieceDetector.center_to_square(cx, cy)
+            cy = y1 * 0.3 + y2 * 0.7
+            row, col = PieceDetector.center_to_square(cx, cy, border_margin=border_margin)
             if board[row][col] is None or conf > board[row][col][1]:
                 board[row][col] = (piece_code, conf)
 

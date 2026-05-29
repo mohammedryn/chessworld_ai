@@ -11,7 +11,7 @@ from tqdm import tqdm
 from .board_detector import BoardDetector
 from .change_detector import ChangeDetector
 from .hand_detector import HandDetector
-from .piece_detector import PieceDetector, BoardState
+from .piece_detector import PieceDetector, BoardState, PIECE_CODES
 from .pgn_writer import PGNWriter
 from .state_machine import BoardStateMachine
 
@@ -53,6 +53,12 @@ class ChessVisionPipeline:
         # Fresh stateful objects per video — cheap to create
         state_machine = BoardStateMachine()
         change_detector = ChangeDetector()
+
+        # Run Auto-Calibration to detect board rotation and border margin
+        print(f"Auto-calibrating board rotation and grid boundaries...")
+        rotation, border_margin = self._calibrate_board(video_path)
+        print(f"Locked configuration: rotation={rotation}°, border_margin={border_margin}px")
+        self._log("calibration", rotation=rotation, border_margin=border_margin)
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -111,17 +117,26 @@ class ChessVisionPipeline:
                 H = self.board_detector.get_homography(corners)
                 warped = self.board_detector.warp(frame, H)
 
+                # Apply auto-calibration rotation to align pieces vertically
+                if rotation == 90:
+                    warped = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
+                elif rotation == 180:
+                    warped = cv2.rotate(warped, cv2.ROTATE_180)
+                elif rotation == 270:
+                    warped = cv2.rotate(warped, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
                 # Hand detection disabled: MediaPipe fires on players' visible arms
                 # regardless of polygon shrinking, blocking ~100% of frames.
                 # The sliding window vote + optical flow gate provide sufficient
                 # robustness against mid-move noise without explicit hand detection.
 
-                board_state: BoardState = self.piece_detector.detect(warped)
+                board_state: BoardState = self.piece_detector.detect(warped, border_margin=border_margin)
                 conf_samples.append(self.piece_detector.mean_confidence(board_state))
 
                 if not orientation_set:
-                    flipped = self._detect_orientation(board_state)
-                    state_machine.set_orientation(flipped)
+                    # Rotation calibration already aligns the board horizontally/vertically.
+                    # We set flipped to False, as White is verified at the bottom.
+                    state_machine.set_orientation(flipped=False)
                     orientation_set = True
 
                 move = state_machine.update(board_state)
@@ -160,6 +175,113 @@ class ChessVisionPipeline:
     def close(self):
         """Release MediaPipe resources. Call after all videos are processed."""
         self.hand_detector.close()
+
+    def _calibrate_board(self, video_path: str) -> tuple[int, float]:
+        """Automatically detect the board's rotation (0, 90, 180, 270) and border margin (0-30)."""
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return 0, 0.0
+
+        # Accumulate up to 5 frames where board corners are detected
+        warped_frames = []
+        frame_idx = 0
+        while len(warped_frames) < 5 and frame_idx < 300:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame_idx += 1
+            if frame_idx % 3 != 0:
+                continue
+
+            corners = self.board_detector.detect(frame)
+            if corners is not None:
+                H = self.board_detector.get_homography(corners)
+                warped = self.board_detector.warp(frame, H)
+                warped_frames.append(warped)
+
+        cap.release()
+
+        if not warped_frames:
+            return 0, 0.0
+
+        # Create standard starting chess board layout
+        starting_board = chess.Board()
+
+        best_rotation = 0
+        best_margin = 0.0
+        best_score = -1
+
+        rotations = [0, 90, 180, 270]
+        margins = [0.0, 10.0, 15.0, 20.0, 25.0, 30.0]
+
+        # Lower confidence and perspective height mapping (alpha=0.3) for extremely robust calibration
+        calibration_conf = 0.25
+        alpha = 0.3
+
+        for rot in rotations:
+            # Collect piece detections for all collected warped frames under this rotation
+            all_frame_detections = []
+            for warped in warped_frames:
+                warped_rot = warped.copy()
+                if rot == 90:
+                    warped_rot = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
+                elif rot == 180:
+                    warped_rot = cv2.rotate(warped, cv2.ROTATE_180)
+                elif rot == 270:
+                    warped_rot = cv2.rotate(warped, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+                results = self.piece_detector.model(warped_rot, conf=calibration_conf, verbose=False)[0]
+                detections = []
+                for box in results.boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    conf = float(box.conf[0])
+                    cls_name = results.names[int(box.cls[0])]
+                    piece_code = PIECE_CODES.get(cls_name)
+                    if piece_code is not None:
+                        cx = (x1 + x2) / 2
+                        cy_mapped = y1 * alpha + y2 * (1.0 - alpha)
+                        detections.append((piece_code, cx, cy_mapped, conf))
+                all_frame_detections.append(detections)
+
+            # Search border margins for this rotation
+            for margin in margins:
+                total_matches = 0
+                total_pieces = 0
+                for detections in all_frame_detections:
+                    board_state = np.full((8, 8), None, dtype=object)
+                    for piece_code, cx, cy, conf in detections:
+                        row, col = PieceDetector.center_to_square(cx, cy, border_margin=margin)
+                        if board_state[row][col] is None or conf > board_state[row][col][1]:
+                            board_state[row][col] = (piece_code, conf)
+
+                    # Compute match score against standard starting position
+                    matches = 0
+                    for r in range(8):
+                        for c in range(8):
+                            sq = chess.square(c, 7 - r)
+                            piece = starting_board.piece_at(sq)
+                            expected = piece.symbol() if piece else None
+                            detected = board_state[r][c][0] if board_state[r][c] is not None else None
+                            if expected == detected:
+                                matches += 1
+                    total_matches += matches
+                    total_pieces += len(detections)
+
+                avg_matches = total_matches / len(warped_frames)
+                avg_pieces = total_pieces / len(warped_frames)
+
+                # Penalize configurations with too few detections
+                score = avg_matches
+                if avg_pieces < 8:
+                    score -= 20.0
+
+                if score > best_score:
+                    best_score = score
+                    best_rotation = rot
+                    best_margin = margin
+
+        return best_rotation, best_margin
+
 
     @staticmethod
     def _detect_orientation(board_state: BoardState) -> bool:

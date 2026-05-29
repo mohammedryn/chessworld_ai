@@ -76,8 +76,39 @@ class BoardDetector:
                 break
 
         if best_quad is None:
+            # Fallback: green-board detection (for CCTV cameras with green/white boards)
+            best_quad = self._detect_green_board(frame)
+
+        if best_quad is None:
             return None
         return self._sort_corners(best_quad)
+
+    def _detect_green_board(self, frame: np.ndarray) -> Optional[np.ndarray]:
+        """Detect chess board by segmenting green squares (for green/white board style)."""
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        green_mask = cv2.inRange(hsv, (36, 40, 40), (90, 255, 255))
+
+        contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        frame_area = frame.shape[0] * frame.shape[1]
+        min_area = 0.03 * frame_area
+
+        big = [c for c in contours if cv2.contourArea(c) > min_area]
+        if not big:
+            return None
+
+        # Union of top green regions → convex hull → 4-corner quad
+        all_pts = np.vstack(big[:20])
+        hull = cv2.convexHull(all_pts)
+        hull_peri = cv2.arcLength(hull, True)
+        for eps in [0.01, 0.02, 0.04, 0.06]:
+            approx = cv2.approxPolyDP(hull, eps * hull_peri, True)
+            if len(approx) == 4:
+                quad = approx.reshape(4, 2).astype(np.float32)
+                x, y, w, h = cv2.boundingRect(quad)
+                aspect = w / h if h > 0 else 0
+                if 0.5 < aspect < 2.0:
+                    return quad
+        return None
 
     def _sort_corners(self, pts: np.ndarray) -> np.ndarray:
         rect = np.zeros((4, 2), dtype=np.float32)
