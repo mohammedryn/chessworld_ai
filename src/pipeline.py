@@ -91,8 +91,11 @@ class ChessVisionPipeline:
                 if not change_detector.has_changed(frame):
                     continue
 
-                H = self.board_detector.get_locked_homography(frame)
-                if H is None:
+                # Recompute corners every change-detected frame for accuracy.
+                # Homography locking caused stale warps when the first frame's
+                # board detection was imprecise.
+                corners = self.board_detector.detect(frame)
+                if corners is None:
                     frames_without_board += 1
                     if not board_found and frames_without_board > BOARD_NOT_FOUND_FRAMES:
                         raise BoardNotFoundError(
@@ -105,7 +108,7 @@ class ChessVisionPipeline:
 
                 board_found = True
                 frames_without_board = 0
-                corners = self.board_detector.detect(frame)
+                H = self.board_detector.get_homography(corners)
                 warped = self.board_detector.warp(frame, H)
 
                 # Hand detection disabled: MediaPipe fires on players' visible arms
