@@ -108,9 +108,16 @@ class ChessVisionPipeline:
                 corners = self.board_detector.detect(frame)
                 warped = self.board_detector.warp(frame, H)
 
-                if corners is not None and self.hand_detector.has_occlusion(frame, corners):
-                    self._log("occlusion", frame=frame_idx)
-                    continue
+                # Only flag occlusion when a hand is clearly over the INNER board area
+                # (not just visible at frame edges). Use a shrunk polygon to avoid
+                # false positives from players' arms resting near the board.
+                if corners is not None:
+                    # Shrink the board polygon by 15% towards its centroid
+                    centroid = corners.mean(axis=0)
+                    shrunk = centroid + 0.85 * (corners - centroid)
+                    if self.hand_detector.has_occlusion(frame, shrunk):
+                        self._log("occlusion", frame=frame_idx)
+                        continue
 
                 board_state: BoardState = self.piece_detector.detect(warped)
                 conf_samples.append(self.piece_detector.mean_confidence(board_state))
