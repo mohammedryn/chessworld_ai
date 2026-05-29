@@ -42,17 +42,19 @@ def test_no_move_when_state_unchanged(starting_board_state):
     assert move is None
 
 
-def test_illegal_diff_returns_none(starting_board_state):
-    """Moving two pieces simultaneously is not a legal chess move."""
+def test_unresolvable_noise_returns_none(starting_board_state):
+    """A heavily corrupted board state (5+ pieces missing) cannot be resolved to a legal move."""
     sm = BoardStateMachine()
     sm.set_orientation(flipped=False)
     _feed_state(sm, starting_board_state)
 
+    # Wipe out 5 pieces from random squares — more missing pieces than MAX_GHOST_VACATIONS=3
     bad_state = starting_board_state.copy()
-    bad_state[6][4] = None
-    bad_state[4][4] = ('P', 0.9)
-    bad_state[6][3] = None
-    bad_state[4][3] = ('P', 0.9)
+    bad_state[6][4] = None  # e2 pawn gone
+    bad_state[6][3] = None  # d2 pawn gone
+    bad_state[6][2] = None  # c2 pawn gone
+    bad_state[6][1] = None  # b2 pawn gone
+    bad_state[7][0] = None  # a1 rook gone
 
     move = _feed_state(sm, bad_state)
     assert move is None

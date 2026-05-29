@@ -65,28 +65,80 @@ class BoardStateMachine:
         return True
 
     def _find_legal_move(self, candidate: BoardState) -> Optional[chess.Move]:
+        # Count pieces that disappeared vs committed (noise = missed detections)
+        # A real single move vacates exactly one square (the source).
+        # Allow up to MAX_GHOST_VACATIONS extra vacated squares due to YOLO misses.
+        MAX_GHOST_VACATIONS = 3
+
+        unexpected_vacations = self._count_unexpected_vacations(candidate)
+
+        best_move = None
+        best_score = -1
         for move in self._chess_board.legal_moves:
             test = self._chess_board.copy()
             test.push(move)
-            if self._position_matches(test, candidate):
-                return move
-        return None
 
-    def _position_matches(self, chess_board: chess.Board, detected: BoardState) -> bool:
+            from_row, from_col = self._sq_to_rc(move.from_square)
+            to_row, to_col = self._sq_to_rc(move.to_square)
+
+            # Source square must be empty in candidate
+            if candidate[from_row][from_col] is not None:
+                continue
+
+            # Destination must have the right piece
+            dest_piece = test.piece_at(move.to_square)
+            expected_dest = dest_piece.symbol() if dest_piece else None
+            detected_dest = candidate[to_row][to_col][0] if candidate[to_row][to_col] else None
+            if expected_dest != detected_dest:
+                continue
+
+            # Total unexpected vacations (excluding this move's source) must be tolerable
+            # Each legal move vacates its own source; subtract 1 from total count
+            extra_vacations = unexpected_vacations - 1
+            if extra_vacations > MAX_GHOST_VACATIONS:
+                continue
+
+            score = self._match_score(test, candidate)
+            if score > best_score:
+                best_score = score
+                best_move = move
+
+        return best_move if best_score >= 56 else None
+
+    def _sq_to_rc(self, sq: int) -> tuple[int, int]:
+        """Convert python-chess square to (row, col) in detected board coordinates."""
+        if self._flipped:
+            return chess.square_rank(sq), 7 - chess.square_file(sq)
+        return 7 - chess.square_rank(sq), chess.square_file(sq)
+
+    def _count_unexpected_vacations(self, candidate: BoardState) -> int:
+        """Count squares where committed has a piece but candidate does not."""
+        count = 0
+        for row in range(8):
+            for col in range(8):
+                c = self._committed[row][col][0] if self._committed[row][col] else None
+                d = candidate[row][col][0] if candidate[row][col] else None
+                if c is not None and d is None:
+                    count += 1
+        return count
+
+    def _match_score(self, chess_board: chess.Board, detected: BoardState) -> int:
+        matches = 0
         for row in range(8):
             for col in range(8):
                 if self._flipped:
                     sq = chess.square(7 - col, 7 - row)
                 else:
                     sq = chess.square(col, 7 - row)
-
                 piece = chess_board.piece_at(sq)
                 expected = piece.symbol() if piece else None
                 detected_code = detected[row][col][0] if detected[row][col] is not None else None
+                if expected == detected_code:
+                    matches += 1
+        return matches
 
-                if expected != detected_code:
-                    return False
-        return True
+    def _position_matches(self, chess_board: chess.Board, detected: BoardState) -> bool:
+        return self._match_score(chess_board, detected) >= 56
 
     @property
     def chess_board(self) -> chess.Board:
