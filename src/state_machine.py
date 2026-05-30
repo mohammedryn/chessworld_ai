@@ -7,12 +7,17 @@ from .piece_detector import BoardState
 
 
 class BoardStateMachine:
-    def __init__(self, window_size: int = 3):
+    def __init__(self, window_size: int = 3, min_move_gap: int = 0):
         self._window: deque = deque(maxlen=window_size)
         self._window_size = window_size
         self._flipped = False
         self._chess_board = chess.Board()
         self._committed: Optional[BoardState] = None
+        # Minimum update() calls between accepted moves — prevents detection noise
+        # from triggering rapid-fire false moves. 30 calls ≈ 3s at FRAME_SKIP=3, 30fps.
+        # Set to 0 in tests (no throttling needed for synthetic data).
+        self._min_move_gap = min_move_gap
+        self._calls_since_last_move: int = min_move_gap  # start ready to accept first move
 
     def _get_starting_board_state(self) -> BoardState:
         board = np.full((8, 8), None, dtype=object)
@@ -51,10 +56,16 @@ class BoardStateMachine:
         if self._boards_equal(voted, self._committed):
             return None
 
+        self._calls_since_last_move += 1
         move = self._find_legal_move(voted)
         if move is not None:
-            self._chess_board.push(move)
-            self._committed = voted
+            if self._calls_since_last_move < self._min_move_gap:
+                # Too soon after last move — discard before pushing to chess_board
+                move = None
+            else:
+                self._chess_board.push(move)
+                self._committed = voted
+                self._calls_since_last_move = 0
         return move
 
     def _vote(self) -> BoardState:
