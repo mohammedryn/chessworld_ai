@@ -51,8 +51,8 @@ class ChessVisionPipeline:
         save_demo: Optional[str] = None,
     ) -> str:
         # Fresh stateful objects per video — cheap to create
-        # min_move_gap=30: ~3s throttle at 30fps/FRAME_SKIP=3, eliminates rapid noise moves
-        state_machine = BoardStateMachine(min_move_gap=30)
+        # min_move_gap=15: throttle eliminates sub-5s rapid noise while catching real moves
+        state_machine = BoardStateMachine(min_move_gap=15)
         change_detector = ChangeDetector()
 
         # Run Auto-Calibration to detect board rotation and border margin
@@ -131,14 +131,18 @@ class ChessVisionPipeline:
                 # The sliding window vote + optical flow gate provide sufficient
                 # robustness against mid-move noise without explicit hand detection.
 
-                # Auto-detect inner board boundaries from the warped image
-                # (handles asymmetric borders and tablecloth inclusion)
+                # Auto-detect inner board boundaries only when the warp includes
+                # substantial non-board area (offset > 30px or sq < 65px).
+                # For well-calibrated warps the standard 80px grid is more accurate.
                 top_off, left_off, sq_h, sq_w = BoardDetector.detect_inner_board(warped)
+                use_inner = top_off > 30 or left_off > 30 or sq_h < 65 or sq_w < 65
                 board_state: BoardState = self.piece_detector.detect(
                     warped,
                     border_margin=border_margin,
-                    top_offset=top_off, left_offset=left_off,
-                    sq_h=sq_h, sq_w=sq_w,
+                    top_offset=top_off if use_inner else 0.0,
+                    left_offset=left_off if use_inner else 0.0,
+                    sq_h=sq_h if use_inner else 0.0,
+                    sq_w=sq_w if use_inner else 0.0,
                 )
                 conf_samples.append(self.piece_detector.mean_confidence(board_state))
 

@@ -14,7 +14,7 @@ class BoardStateMachine:
         self._chess_board = chess.Board()
         self._committed: Optional[BoardState] = None
         # Minimum update() calls between accepted moves — prevents detection noise
-        # from triggering rapid-fire false moves. 30 calls ≈ 3s at FRAME_SKIP=3, 30fps.
+        # from triggering rapid-fire false moves. 15 calls ≈ ~5-7s depending on optical flow rate.
         # Set to 0 in tests (no throttling needed for synthetic data).
         self._min_move_gap = min_move_gap
         self._calls_since_last_move: int = min_move_gap  # start ready to accept first move
