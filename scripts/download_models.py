@@ -68,7 +68,7 @@ def train(yaml_path: Path):
     device = 0 if torch.cuda.is_available() else "cpu"
     print(f"Training YOLOv8n on {'GPU' if device == 0 else 'CPU'}...")
 
-    model = YOLO("yolov8n.pt")
+    model = YOLO(str(Path("models/yolov8n.pt")))
     results = model.train(
         data=str(yaml_path),
         epochs=30,

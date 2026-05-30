@@ -1,7 +1,35 @@
-models/
-output/
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .env
+
+# Model weights (large binary — retrain via scripts/train_combined.py)
 *.pt
 *.onnx
+
+# MediaPipe task file (large binary — download separately)
+*.task
+
+# Dataset directories (large — re-download via scripts/download_models.py)
+models/raw_datasets/
+models/combined_dataset/
+models/roboflow_download/
+training_frames/
+
+# Training output (large — regenerated on each training run)
+models/training/
+
+# Logs and caches
+logs/
+.pytest_cache/
+
+# Debug artifacts (generated images/videos only, not exploration scripts)
+output/debug/
+output/*.jpg
+output/*.mp4
+
+# IDE
+.vscode/
+.idea/
+
