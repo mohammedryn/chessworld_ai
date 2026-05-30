@@ -110,6 +110,42 @@ class BoardDetector:
                     return quad
         return None
 
+    @staticmethod
+    def detect_inner_board(warped: np.ndarray) -> tuple[int, int, float, float]:
+        """Auto-detect actual chess square boundaries in a warped 640×640 image.
+
+        Returns (top_offset, left_offset, square_h, square_w) using row/column
+        variance analysis — chess squares have high local variance; uniform
+        borders/tablecloth have low variance.
+        """
+        gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+
+        def find_range(profile: np.ndarray) -> tuple[int, int]:
+            try:
+                import scipy.ndimage as ndi
+                smoothed = ndi.uniform_filter1d(profile.astype(float), size=20)
+            except ImportError:
+                kernel = np.ones(20) / 20
+                smoothed = np.convolve(profile.astype(float), kernel, mode='same')
+            threshold = np.percentile(smoothed, 50)
+            active = np.where(smoothed > threshold)[0]
+            if len(active) < 16:
+                return 0, len(profile) - 1
+            return int(active[0]), int(active[-1])
+
+        row_vars = np.array([np.var(gray[y, :]) for y in range(640)])
+        col_vars = np.array([np.var(gray[:, x]) for x in range(640)])
+
+        top, bottom = find_range(row_vars)
+        left, right = find_range(col_vars)
+
+        board_h = max(bottom - top, 1)
+        board_w = max(right - left, 1)
+        sq_h = board_h / 8.0
+        sq_w = board_w / 8.0
+
+        return top, left, sq_h, sq_w
+
     def _sort_corners(self, pts: np.ndarray) -> np.ndarray:
         rect = np.zeros((4, 2), dtype=np.float32)
         s = pts.sum(axis=1)

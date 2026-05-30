@@ -130,7 +130,15 @@ class ChessVisionPipeline:
                 # The sliding window vote + optical flow gate provide sufficient
                 # robustness against mid-move noise without explicit hand detection.
 
-                board_state: BoardState = self.piece_detector.detect(warped, border_margin=border_margin)
+                # Auto-detect inner board boundaries from the warped image
+                # (handles asymmetric borders and tablecloth inclusion)
+                top_off, left_off, sq_h, sq_w = BoardDetector.detect_inner_board(warped)
+                board_state: BoardState = self.piece_detector.detect(
+                    warped,
+                    border_margin=border_margin,
+                    top_offset=top_off, left_offset=left_off,
+                    sq_h=sq_h, sq_w=sq_w,
+                )
                 conf_samples.append(self.piece_detector.mean_confidence(board_state))
 
                 if not orientation_set:
