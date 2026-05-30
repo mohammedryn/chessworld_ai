@@ -37,10 +37,14 @@ class BoardStateMachine:
         voted = self._vote()
 
         if self._committed is None:
-            # Dynamic committed initialization based on occupancy match and minimum piece count
+            # Commit the first voted state that has a reasonable number of pieces.
+            # Lower threshold (28/64) ensures we commit at the START of the video
+            # (starting position) rather than waiting for a mid-game position that
+            # accidentally scores higher — committing mid-game desynchronises
+            # _chess_board (always at starting position) from _committed.
             num_pieces = sum(1 for r in range(8) for c in range(8) if voted[r][c] is not None)
             score = self._match_score(self._chess_board, voted)
-            if num_pieces >= 12 and score >= 42:
+            if num_pieces >= 8 and score >= 28:
                 self._committed = voted
             return None
 
@@ -83,7 +87,7 @@ class BoardStateMachine:
         # Count pieces that disappeared vs committed (noise = missed detections)
         # A real single move vacates exactly one square (the source).
         # Allow up to MAX_GHOST_VACATIONS extra vacated squares due to YOLO misses.
-        MAX_GHOST_VACATIONS = 3
+        MAX_GHOST_VACATIONS = 10  # generous — overhead cameras have very noisy detection
 
         unexpected_vacations = self._count_unexpected_vacations(candidate)
 
@@ -120,7 +124,7 @@ class BoardStateMachine:
                 best_score = score
                 best_move = move
 
-        return best_move if best_score >= 46 else None
+        return best_move if best_score >= 32 else None
 
     def _sq_to_rc(self, sq: int) -> tuple[int, int]:
         """Convert python-chess square to (row, col) in detected board coordinates."""
