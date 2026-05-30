@@ -51,8 +51,8 @@ class ChessVisionPipeline:
         save_demo: Optional[str] = None,
     ) -> str:
         # Fresh stateful objects per video — cheap to create
-        # min_move_gap=15: throttle eliminates sub-5s rapid noise while catching real moves
-        state_machine = BoardStateMachine(min_move_gap=15)
+        # min_frame_gap=60: 2s at 30fps — eliminates sub-2s noise without filtering real moves
+        state_machine = BoardStateMachine(min_frame_gap=60)
         change_detector = ChangeDetector()
 
         # Run Auto-Calibration to detect board rotation and border margin
@@ -152,7 +152,7 @@ class ChessVisionPipeline:
                     state_machine.set_orientation(flipped=False)
                     orientation_set = True
 
-                move = state_machine.update(board_state)
+                move = state_machine.update(board_state, frame_idx=frame_idx)
                 if move is not None:
                     comment = None
                     if move.promotion and move.promotion != chess.QUEEN:

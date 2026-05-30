@@ -7,17 +7,18 @@ from .piece_detector import BoardState
 
 
 class BoardStateMachine:
-    def __init__(self, window_size: int = 3, min_move_gap: int = 0):
+    def __init__(self, window_size: int = 3, min_frame_gap: int = 0):
         self._window: deque = deque(maxlen=window_size)
         self._window_size = window_size
         self._flipped = False
         self._chess_board = chess.Board()
         self._committed: Optional[BoardState] = None
-        # Minimum update() calls between accepted moves — prevents detection noise
-        # from triggering rapid-fire false moves. 15 calls ≈ ~5-7s depending on optical flow rate.
-        # Set to 0 in tests (no throttling needed for synthetic data).
-        self._min_move_gap = min_move_gap
-        self._calls_since_last_move: int = min_move_gap  # start ready to accept first move
+        # Minimum VIDEO FRAMES between accepted moves (not update() calls).
+        # Frame-based gap is stable across different optical flow rates.
+        # 60 frames = 2s at 30fps. Set to 0 in tests.
+        self._min_frame_gap = min_frame_gap
+        self._last_move_frame: int = -min_frame_gap  # start ready to accept first move
+        self._current_frame: int = 0
 
     def _get_starting_board_state(self) -> BoardState:
         board = np.full((8, 8), None, dtype=object)
@@ -34,7 +35,8 @@ class BoardStateMachine:
         self._flipped = flipped
         self._committed = None
 
-    def update(self, board_state: BoardState) -> Optional[chess.Move]:
+    def update(self, board_state: BoardState, frame_idx: int = 0) -> Optional[chess.Move]:
+        self._current_frame = frame_idx
         self._window.append(board_state)
         if len(self._window) < self._window_size:
             return None
@@ -56,16 +58,14 @@ class BoardStateMachine:
         if self._boards_equal(voted, self._committed):
             return None
 
-        self._calls_since_last_move += 1
         move = self._find_legal_move(voted)
         if move is not None:
-            if self._calls_since_last_move < self._min_move_gap:
-                # Too soon after last move — discard before pushing to chess_board
-                move = None
+            if (self._current_frame - self._last_move_frame) < self._min_frame_gap:
+                move = None  # too soon — discard before pushing to chess_board
             else:
                 self._chess_board.push(move)
                 self._committed = voted
-                self._calls_since_last_move = 0
+                self._last_move_frame = self._current_frame
         return move
 
     def _vote(self) -> BoardState:
