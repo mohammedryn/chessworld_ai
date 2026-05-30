@@ -82,6 +82,9 @@ class ChessVisionPipeline:
         orientation_set = False
         conf_samples: list[float] = []
         frame_idx = 0
+        last_move_frame = -999  # for minimum-interval filter
+        # Chess moves take at least ~3s. At 30fps/FRAME_SKIP=3, that's ≥30 processed frames.
+        MIN_FRAMES_BETWEEN_MOVES = 30
 
         with tqdm(total=total_frames, desc=Path(video_path).name, unit="frame") as pbar:
             while True:
@@ -148,7 +151,12 @@ class ChessVisionPipeline:
                     orientation_set = True
 
                 move = state_machine.update(board_state)
+                # Ignore moves that arrive faster than MIN_FRAMES_BETWEEN_MOVES —
+                # these are detection noise, not real chess moves.
+                if move is not None and (frame_idx - last_move_frame) < MIN_FRAMES_BETWEEN_MOVES:
+                    move = None
                 if move is not None:
+                    last_move_frame = frame_idx
                     comment = None
                     if move.promotion and move.promotion != chess.QUEEN:
                         comment = "promoted to Queen by default"
