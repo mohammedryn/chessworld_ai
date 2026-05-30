@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 from ultralytics import YOLO
 from typing import Optional
@@ -71,6 +72,49 @@ class PieceDetector:
             )
             if board[row][col] is None or conf > board[row][col][1]:
                 board[row][col] = (piece_code, conf)
+
+        return board
+
+    def detect_per_square(
+        self, warped: np.ndarray,
+        border_margin: float = 0.0,
+        top_offset: float = 0.0, left_offset: float = 0.0,
+        sq_h: float = 0.0, sq_w: float = 0.0,
+    ) -> BoardState:
+        """Per-square zoomed detection — more robust for extreme oblique angles."""
+        board: BoardState = np.full((8, 8), None, dtype=object)
+
+        actual_sq_h = sq_h if sq_h > 0 else 80.0
+        actual_sq_w = sq_w if sq_w > 0 else 80.0
+        actual_top = top_offset if sq_h > 0 else 0.0
+        actual_left = left_offset if sq_w > 0 else 0.0
+
+        for row in range(8):
+            for col in range(8):
+                y1 = int(actual_top + row * actual_sq_h)
+                y2 = int(actual_top + (row + 1) * actual_sq_h)
+                x1 = int(actual_left + col * actual_sq_w)
+                x2 = int(actual_left + (col + 1) * actual_sq_w)
+
+                y1, y2 = max(0, y1), min(639, y2)
+                x1, x2 = max(0, x1), min(639, x2)
+                if y2 <= y1 or x2 <= x1:
+                    continue
+
+                sq_crop = warped[y1:y2, x1:x2]
+                if sq_crop.size == 0:
+                    continue
+
+                sq_zoom = cv2.resize(sq_crop, (320, 320))
+                results = self.model(sq_zoom, conf=self.confidence * 0.7, verbose=False)[0]
+
+                if results.boxes:
+                    best_box = max(results.boxes, key=lambda b: float(b.conf[0]))
+                    conf = float(best_box.conf[0])
+                    cls_name = results.names[int(best_box.cls[0])]
+                    piece_code = PIECE_CODES.get(cls_name)
+                    if piece_code is not None:
+                        board[row][col] = (piece_code, conf)
 
         return board
 
