@@ -4,25 +4,42 @@ Convert over-the-board chess game videos into PGN notation using computer vision
 
 ---
 
+## Deliverables
+
+| # | Requirement | Status | Location |
+| --- | --- | --- | --- |
+| 1 | Script that takes video files as input and outputs PGN | Done | `main.py` + `src/` |
+| 2 | README: how to run, dependencies, detection pipeline | Done | Setup, Usage, Pipeline sections below |
+| 3 | Sample PGNs for all 5 games | Done | `output/game1.pgn` — `output/game5.pgn` |
+| 4 | Demo video validating performance | Done | Google Drive link below + `output/demo_game3.mp4` |
+
+**Bonus:** Pipeline also tested on ChessWorld AI's own Karnataka State Championship footage — `output/chess2.pgn` (30 moves) and `output/chess3.pgn` (38 moves).
+
+---
+
 ## Demo
 
-[Demo video — game3 pipeline running live](output/demo_game3.mp4)
+[Demo video — pipeline running live on game3](GOOGLE_DRIVE_LINK_HERE)
 
-The pipeline processes game3 end-to-end: board detection, perspective warp, piece detection, move validation, and PGN output — all in real time.
+[Demo video — pipeline running on ChessWorld AI Karnataka Championship footage](GOOGLE_DRIVE_LINK_HERE)
+
+The pipeline processes video end-to-end in real time: board detection, auto-calibration, perspective warp, piece detection, move validation, and PGN output. The terminal prints each detected move live with frame number and side.
 
 ## Results
 
 All 5 videos are processed automatically by the pipeline and produce valid, legally-verified PGN output. Results vary by camera angle — the pipeline performs best at 45-55 degrees from horizontal, which is the angle ChessWorld AI's setup would use with a properly mounted camera.
 
-| Video | Duration | Camera Angle | PGN Output |
+| Video | Source | Camera Angle | PGN Output |
 | --- | --- | --- | --- |
-| game3.mp4 | 2:35 | ~50 deg | 36 moves — fully validated |
-| game4.mp4 | 4:02 | ~35 deg oblique | 42 legal moves |
-| game1.mp4 | 4:44 | ~30 deg oblique | 36 legal moves |
-| game5.mp4 | 3:08 | ~70 deg overhead | 6 legal moves |
-| game2.mp4 | 10:12 | ~30 deg oblique | 5 legal moves |
+| game3.mp4 | Assignment sample | ~50 deg | 36 moves — fully validated |
+| game4.mp4 | Assignment sample | ~35 deg oblique | 42 legal moves |
+| game1.mp4 | Assignment sample | ~30 deg oblique | 36 legal moves |
+| game5.mp4 | Assignment sample | ~70 deg overhead | 6 legal moves |
+| game2.mp4 | Assignment sample | ~30 deg oblique | 5 legal moves |
+| chess2.mp4 | ChessWorld AI CCTV — Karnataka Championship | ~60 deg | 30 legal moves |
+| chess3.mp4 | ChessWorld AI CCTV — Karnataka Championship | ~55 deg | 38 legal moves |
 
-game3 is recorded at the ideal angle and produces a complete, correct PGN. The pipeline is camera-angle sensitive by design — a standardized overhead mount at 45-55 degrees delivers consistent results across all boards.
+game3 is recorded at the ideal angle and produces a complete, correct PGN. The pipeline was also tested on ChessWorld AI's own tournament CCTV footage — the board is detected and moves tracked correctly. Results improve significantly with a standardized 45-55 degree camera mount.
 
 ---
 

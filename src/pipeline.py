@@ -159,6 +159,10 @@ class ChessVisionPipeline:
                         comment = "promoted to Queen by default"
                     pgn_writer.add_move(move, comment=comment)
                     self._log("move", frame=frame_idx, uci=move.uci())
+                    n = pgn_writer.move_count()
+                    side = "White" if n % 2 == 1 else "Black"
+                    full = (n + 1) // 2
+                    print(f"  Move {n:>2}  ({side:5})  {move.uci():<8}  [frame {frame_idx}]")
 
                 if demo or save_demo:
                     composite = self._render_demo(frame, warped, board_state, pgn_writer, move)
