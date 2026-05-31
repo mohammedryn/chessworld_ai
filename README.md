@@ -47,16 +47,85 @@ game3 is recorded at the ideal angle and produces a complete, correct PGN. The p
 
 ## Pipeline
 
-```text
-Video
-  -> Frame Extractor (every 3rd frame)
-  -> Optical Flow Gate (Farneback — skips static frames)
-  -> Board Detector (contour detection -> 4 corners -> perspective warp -> 640x640)
-  -> Auto-Calibration (grid search: rotation x border_margin vs starting position)
-  -> YOLOv8n Piece Detector (12 classes, 87.4% mAP50)
-  -> 3-Frame Sliding Window Vote
-  -> Board State Machine (legal move validation via python-chess)
-  -> output/gameN.pgn
+```mermaid
+flowchart TD
+    classDef io       fill:#4a235a,stroke:#8e44ad,color:#fff,font-weight:bold
+    classDef frame    fill:#154360,stroke:#2e86c1,color:#fff
+    classDef vision   fill:#0b5345,stroke:#17a589,color:#fff
+    classDef ai       fill:#6e2f1a,stroke:#e67e22,color:#fff
+    classDef chess    fill:#78281f,stroke:#e74c3c,color:#fff
+    classDef skip     fill:#424949,stroke:#717d7e,color:#ccc,font-style:italic
+
+    VIDEO(["Video File"]):::io
+
+    subgraph GATE ["Frame Selection — change_detector.py"]
+        direction TB
+        FS["Extract every 3rd frame"]:::frame
+        OF{"Farneback Optical Flow\nMean magnitude < 0.5px?"}:::frame
+        SK(["Skip — static frame"]):::skip
+    end
+
+    subgraph BOARD ["Board Detection — board_detector.py"]
+        direction TB
+        CD["Contour Detection\nOtsu threshold + progressive epsilon\nConvex hull + HSV green fallback"]:::vision
+        HW["Perspective Warp\n4 corners → 640x640"]:::vision
+        AC["Auto-Calibration\n4 rotations x 6 border margins\nScored against starting position"]:::vision
+    end
+
+    subgraph DETECT ["Piece Detection — piece_detector.py"]
+        direction TB
+        YO["YOLOv8n Inference\n12 classes · 87.4% mAP50\n7,620 training images · RTX 4050"]:::ai
+        SW["3-Frame Sliding Window Vote\nPlurality per square"]:::ai
+    end
+
+    subgraph MACHINE ["Move Validation — state_machine.py"]
+        direction TB
+        SM["Board State Machine\nOccupancy matching · min 60-frame gap\nGhost vacation tolerance"]:::chess
+        PC["python-chess\nLegal move filter"]:::chess
+    end
+
+    PGN(["output/gameN.pgn"]):::io
+
+    VIDEO      --> FS
+    FS         --> OF
+    OF         -- "motion detected"  --> CD
+    OF         -- "static frame"     --> SK
+    CD         --> HW
+    HW         --> AC
+    AC         --> YO
+    YO         --> SW
+    SW         --> SM
+    SM         --> PC
+    PC         -- "move confirmed"   --> PGN
+    PC         -- "no legal move"    --> SW
+```
+
+---
+
+## Model Training
+
+```mermaid
+flowchart LR
+    classDef dataset  fill:#1a3a5c,stroke:#2980b9,color:#fff
+    classDef process  fill:#0b5345,stroke:#17a589,color:#fff
+    classDef model    fill:#6e2f1a,stroke:#e67e22,color:#fff,font-weight:bold
+
+    D1["chesscam-dh33p\n1,644 images\nPlastic pieces"]:::dataset
+    D2["chess-pieces-tt9wp\n5,064 images\nMixed styles"]:::dataset
+    D3["chess-pieces-wrdbb\n438 images\nWooden pieces"]:::dataset
+    D4["chess-piece-detection\n423 images\nWooden pieces"]:::dataset
+    D5["game3 auto-labels\n51 frames\nSelf-supervised from PGN"]:::dataset
+
+    MERGE["Combined Dataset\n7,620 train · 915 val"]:::process
+    AUG["Augmentation\nperspective=0.004\nrotation +-20 deg · shear · scale"]:::process
+    TRAIN["YOLOv8n Training\n40 epochs · batch=8\nRTX 4050 · ~36 min"]:::process
+
+    MODEL(["piece_detector.pt\n87.4% mAP50"]):::model
+
+    D1 & D2 & D3 & D4 & D5 --> MERGE
+    MERGE --> AUG
+    AUG --> TRAIN
+    TRAIN --> MODEL
 ```
 
 ---
