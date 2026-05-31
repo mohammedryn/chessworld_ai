@@ -1,12 +1,10 @@
 [Event "ChessWorld AI Assignment"]
 [Site "?"]
-[Date "2026.05.30"]
+[Date "2026.05.31"]
 [Round "?"]
 [White "?"]
 [Black "?"]
 [Result "*"]
 
-1. Nh3 Nh6 2. g3 f6 3. Ng5 Nc6 4. e3 Ng8 5. Ba6 h5 6. Qg4 fxg5 7. Be2 Nd4 8.
-Qh4 c6 9. Qg4 Nh6 10. Bc4 Rb8 11. Bd5 Ne6 12. Rg1 Qa5 13. Qh4 Nf5 14. Rg2 g6
-15. Bc4 Qe5 16. h3 Ned4 17. Bg8 *
+1. Nh3 Nh6 2. Na3 f6 3. Nf4 Nc6 4. Ne6 Kf7 5. e3 Kg8 6. Ng5 Qe8 *
 

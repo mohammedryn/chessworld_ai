@@ -1,0 +1,15 @@
+[Event "ChessWorld AI Assignment"]
+[Site "?"]
+[Date "2026.06.01"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. Na3 Na6 2. g3 Nh6 3. Nb1 Rg8 4. Bh3 Ng4 5. Bf1 Ne5 6. Bh3 Ng4 7. Na3 Rh8 8.
+Bxg4 d5 9. h3 d4 10. Bh5 Qd5 11. Nc4 Qa5 12. Na3 Bg4 13. Bxg4 Qd5 14. Bh5 c5
+15. Kf1 Qg5 16. Bg4 Qh5 17. Nb1 Qh6 18. Bf5 f6 19. d3 Qg5 20. Kg2 Kf7 21. Kh2
+Kg8 22. Na3 Qh5 23. g4 Qxf5 24. Bh6 Kf7 25. Bc1 Qh5 26. h4 f5 27. gxh5 Kg8 28.
+Bf4 e5 29. Qc1 Kf7 30. Nc4 h6 31. Qf1 g6 32. Bxe5 Kg8 33. Bf6 gxh5 34. Na3 Kf7
+35. Be5 Kg8 36. Bg7 Rh7 37. Rc1 Rh8 38. Bxh8 *
+

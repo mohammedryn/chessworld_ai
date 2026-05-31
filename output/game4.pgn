@@ -1,15 +1,16 @@
 [Event "ChessWorld AI Assignment"]
 [Site "?"]
-[Date "2026.05.30"]
+[Date "2026.05.31"]
 [Round "?"]
 [White "?"]
 [Black "?"]
 [Result "*"]
 
-1. Nh3 Nc6 2. Na3 d6 3. c4 Bd7 4. f3 Bg4 5. f4 Kd7 6. Rg1 e6 7. Qa4 b6 8. Kf2
-b5 9. Ng5 Nh6 10. b4 Qc8 11. Nh3 g6 12. g3 Bg7 13. f5 Re8 14. Rg2 Bf6 15. Ng5
-Rd8 16. h3 Ke8 17. fxg6 Kf8 18. Nf3 Kg8 19. d3 Kh8 20. Rg1 Kg7 21. Qa6 Bxh3 22.
-Bxh3 fxg6 23. Qa5 Be7 24. Rf1 Bg5 25. Rd1 Rh8 26. Bg4 Re8 27. d4 Rh8 28. Rd2
-Nf7 29. Rb2 Bh4 30. Ng5 d5 31. Nf3 g5 32. Bh5 a6 33. Bg4 Kh6 34. Bh5 Qg8 35.
-Ng1 Qg7 36. Kf3 Rhg8 37. Bg4 Nb8 38. Bh3 Nc6 39. Rbb1 *
+1. Nh3 Na6 2. b3 Nh6 3. Bb2 c6 4. g3 g6 5. Bg2 e6 6. d3 Be7 7. g4 d5 8. Ng5 Qd7
+9. Nh3 b6 10. Bf3 Bf8 11. e3 Be7 12. Bf6 Bd6 13. Na3 Qe7 14. Be5 Bc7 15. Kf1
+Bd6 16. Qe1 Bc7 17. Nb5 Bd6 18. Rb1 Ng8 19. Nd4 Bb7 20. Nf5 Bc7 21. Rb2 Nh6 22.
+Be4 Qf8 23. Bf4 e5 24. Nh4 dxe4 25. b4 Ke7 26. b5 Ke8 27. Bg5 f5 28. Rb3 Qg7
+29. Be7 Qg8 30. dxe4 f4 31. Bf8 Qg7 32. Nf3 Kf7 33. exf4 Nb4 34. Bc5 Rag8 35.
+f5 Rf8 36. Nh4 Ba6 37. Ng5+ Kg8 38. Bd6 Rc8 39. Nh3 Qd7 40. Ng5 Nd5 41. Ba3 Kg7
+42. Nh3 *
 
