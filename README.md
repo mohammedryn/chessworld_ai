@@ -39,6 +39,10 @@ All 5 videos are processed automatically by the pipeline and produce valid, lega
 
 game3 is recorded at the ideal angle and produces a complete, correct PGN. The pipeline was also tested on ChessWorld AI's own tournament CCTV footage — the board is detected and moves tracked correctly. Results improve significantly with a standardized 45-55 degree camera mount.
 
+**Pipeline running live on ChessWorld AI Karnataka Championship footage:**
+
+![ChessWorld AI CCTV — live move detection](docs/image.png)
+
 ---
 
 ## Pipeline
