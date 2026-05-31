@@ -19,9 +19,7 @@ Convert over-the-board chess game videos into PGN notation using computer vision
 
 ## Demo
 
-[Demo video — pipeline running live on game3](GOOGLE_DRIVE_LINK_HERE)
-
-[Demo video — pipeline running on ChessWorld AI Karnataka Championship footage](GOOGLE_DRIVE_LINK_HERE)
+[Demo video — pipeline running live on game3](https://drive.google.com/drive/folders/16C2BVZs9LAL1qvXW9EilNFDvUW6iBxp3?usp=sharing)
 
 The pipeline processes video end-to-end in real time: board detection, auto-calibration, perspective warp, piece detection, move validation, and PGN output. The terminal prints each detected move live with frame number and side.
 
