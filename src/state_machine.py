@@ -7,18 +7,17 @@ from .piece_detector import BoardState
 
 
 class BoardStateMachine:
-    def __init__(self, window_size: int = 3, min_frame_gap: int = 0):
+    def __init__(self, window_size: int = 3, min_frame_gap: int = 0,
+                 move_threshold: int = 32):
         self._window: deque = deque(maxlen=window_size)
         self._window_size = window_size
         self._flipped = False
         self._chess_board = chess.Board()
         self._committed: Optional[BoardState] = None
-        # Minimum VIDEO FRAMES between accepted moves (not update() calls).
-        # Frame-based gap is stable across different optical flow rates.
-        # 60 frames = 2s at 30fps. Set to 0 in tests.
         self._min_frame_gap = min_frame_gap
-        self._last_move_frame: int = -min_frame_gap  # start ready to accept first move
+        self._last_move_frame: int = -min_frame_gap
         self._current_frame: int = 0
+        self._move_threshold = move_threshold
 
     def _get_starting_board_state(self) -> BoardState:
         board = np.full((8, 8), None, dtype=object)
@@ -98,7 +97,7 @@ class BoardStateMachine:
         # Count pieces that disappeared vs committed (noise = missed detections)
         # A real single move vacates exactly one square (the source).
         # Allow up to MAX_GHOST_VACATIONS extra vacated squares due to YOLO misses.
-        MAX_GHOST_VACATIONS = 10  # generous — overhead cameras have very noisy detection
+        MAX_GHOST_VACATIONS = 10
 
         unexpected_vacations = self._count_unexpected_vacations(candidate)
 
@@ -135,7 +134,7 @@ class BoardStateMachine:
                 best_score = score
                 best_move = move
 
-        return best_move if best_score >= 32 else None
+        return best_move if best_score >= self._move_threshold else None
 
     def _sq_to_rc(self, sq: int) -> tuple[int, int]:
         """Convert python-chess square to (row, col) in detected board coordinates."""

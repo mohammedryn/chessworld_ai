@@ -29,9 +29,10 @@ class BoardNotFoundError(Exception):
 
 
 class ChessVisionPipeline:
-    def __init__(self, piece_model_path: str, log_path: Optional[str] = None):
+    def __init__(self, piece_model_path: str, log_path: Optional[str] = None,
+                 confidence: float = 0.25):
         self.board_detector = BoardDetector()
-        self.piece_detector = PieceDetector(piece_model_path)
+        self.piece_detector = PieceDetector(piece_model_path, confidence=confidence)
         self.hand_detector = HandDetector()
 
         if log_path:
@@ -49,10 +50,13 @@ class ChessVisionPipeline:
         output_path: str,
         demo: bool = False,
         save_demo: Optional[str] = None,
+        min_frame_gap: int = 60,
+        move_threshold: int = 32,
     ) -> str:
-        # Fresh stateful objects per video — cheap to create
-        # min_frame_gap=60: 2s at 30fps — eliminates sub-2s noise without filtering real moves
-        state_machine = BoardStateMachine(min_frame_gap=60)
+        state_machine = BoardStateMachine(
+            min_frame_gap=min_frame_gap,
+            move_threshold=move_threshold,
+        )
         change_detector = ChangeDetector()
 
         # Run Auto-Calibration to detect board rotation and border margin
