@@ -18,6 +18,12 @@ class BoardStateMachine:
         self._last_move_frame: int = -min_frame_gap
         self._current_frame: int = 0
         self._move_threshold = move_threshold
+        # Board-match score of each accepted move (out of 64). Used to report
+        # detection reliability: clean footage commits moves at ~59-64, whereas
+        # noisy footage (wrong-square detections) caps out at ~50. See pipeline
+        # reliability warning. Tracking only — does not affect move decisions.
+        self._accepted_scores: list[int] = []
+        self._last_move_score: int = -1
 
     def _get_starting_board_state(self) -> BoardState:
         board = np.full((8, 8), None, dtype=object)
@@ -65,6 +71,7 @@ class BoardStateMachine:
                 self._chess_board.push(move)
                 self._committed = voted
                 self._last_move_frame = self._current_frame
+                self._accepted_scores.append(self._last_move_score)
         return move
 
     def _vote(self) -> BoardState:
@@ -134,6 +141,7 @@ class BoardStateMachine:
                 best_score = score
                 best_move = move
 
+        self._last_move_score = best_score
         return best_move if best_score >= self._move_threshold else None
 
     def _sq_to_rc(self, sq: int) -> tuple[int, int]:
@@ -174,3 +182,17 @@ class BoardStateMachine:
     @property
     def chess_board(self) -> chess.Board:
         return self._chess_board
+
+    @property
+    def reliability(self) -> Optional[float]:
+        """Median board-match score (out of 64) across all accepted moves.
+
+        A proxy for detection trustworthiness on this footage. Clean camera
+        angles commit moves at ~59-64; noisy footage (pieces landing on the
+        wrong squares due to oblique angle or lens distortion) cannot exceed
+        ~50 because ~14/64 squares are always misplaced. Returns None when no
+        moves were accepted. Used by the pipeline to flag unreliable output.
+        """
+        if not self._accepted_scores:
+            return None
+        return float(np.median(self._accepted_scores))

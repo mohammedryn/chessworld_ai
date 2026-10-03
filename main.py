@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 import argparse
+import json
 from pathlib import Path
 
 from src.pipeline import ChessVisionPipeline, BoardNotFoundError
+
+
+def load_calibration(explicit: str | None, video_stem: str) -> dict | None:
+    """Load a fixed-camera calibration: explicit path, else calibration/<stem>.json."""
+    path = Path(explicit) if explicit else Path("calibration") / f"{video_stem}.json"
+    if path.exists():
+        print(f"Using fixed-camera calibration: {path}")
+        return json.loads(path.read_text())
+    return None
 
 
 def main():
@@ -30,6 +40,9 @@ def main():
     parser.add_argument("--move-threshold", type=int, default=32,
                         help="Minimum occupancy match score to accept a move out of 64 "
                              "(default: 32). Raise to 38-42 for stricter filtering.")
+    parser.add_argument("--calibration", metavar="PATH",
+                        help="Fixed-camera calibration JSON (from scripts/calibrate_camera.py). "
+                             "If omitted, auto-loads calibration/<video>.json when present.")
     args = parser.parse_args()
 
     pipeline = ChessVisionPipeline(
@@ -63,6 +76,7 @@ def main():
                         demo=args.demo, save_demo=demo_path,
                         min_frame_gap=args.min_frame_gap,
                         move_threshold=args.move_threshold,
+                        calibration=load_calibration(args.calibration, video.stem),
                     )
                     print(f"   Saved: {out}")
                 except BoardNotFoundError as e:
@@ -73,6 +87,7 @@ def main():
                 demo=args.demo, save_demo=args.save_demo,
                 min_frame_gap=args.min_frame_gap,
                 move_threshold=args.move_threshold,
+                calibration=load_calibration(args.calibration, input_path.stem),
             )
             print(f"PGN saved to {output_path}")
     finally:

@@ -18,6 +18,7 @@ from .state_machine import BoardStateMachine
 FRAME_SKIP = 3
 LOW_CONF_WARN = 0.4
 MIN_MOVES_WARN = 5
+RELIABILITY_WARN = 55   # median move match-score below this = unreliable footage
 BOARD_NOT_FOUND_FRAMES = 900   # ~30s at 30fps / FRAME_SKIP
 BOARD_LOST_FRAMES = 150        # ~5s at 30fps / FRAME_SKIP
 
@@ -52,6 +53,7 @@ class ChessVisionPipeline:
         save_demo: Optional[str] = None,
         min_frame_gap: int = 60,
         move_threshold: int = 32,
+        calibration: Optional[dict] = None,
     ) -> str:
         state_machine = BoardStateMachine(
             min_frame_gap=min_frame_gap,
@@ -59,11 +61,27 @@ class ChessVisionPipeline:
         )
         change_detector = ChangeDetector()
 
-        # Run Auto-Calibration to detect board rotation and border margin
-        print(f"Auto-calibrating board rotation and grid boundaries...")
-        rotation, border_margin = self._calibrate_board(video_path)
-        print(f"Locked configuration: rotation={rotation}°, border_margin={border_margin}px")
-        self._log("calibration", rotation=rotation, border_margin=border_margin)
+        locked_H: Optional[np.ndarray] = None
+        cal_k1 = cal_k2 = 0.0
+        cal_maps = None  # precomputed undistort maps, built once on first frame
+        if calibration is not None:
+            # Fixed-camera calibration: undistort + warp from locked corners,
+            # instead of per-frame board detection. See scripts/calibrate_camera.py.
+            rotation = int(calibration.get("rotation", 0))
+            border_margin = float(calibration.get("border_margin", 0.0))
+            cal_k1 = float(calibration.get("k1", 0.0))
+            cal_k2 = float(calibration.get("k2", 0.0))
+            corners = np.array(calibration["corners"], dtype=np.float32)
+            locked_H = self.board_detector.get_homography(corners)
+            print(f"Loaded fixed-camera calibration: k1={cal_k1}, rotation={rotation}°, locked corners")
+            self._log("calibration", source="file", rotation=rotation, k1=cal_k1,
+                      border_margin=border_margin)
+        else:
+            # Run Auto-Calibration to detect board rotation and border margin
+            print(f"Auto-calibrating board rotation and grid boundaries...")
+            rotation, border_margin = self._calibrate_board(video_path)
+            print(f"Locked configuration: rotation={rotation}°, border_margin={border_margin}px")
+            self._log("calibration", rotation=rotation, border_margin=border_margin)
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -102,27 +120,40 @@ class ChessVisionPipeline:
                 if not change_detector.has_changed(frame):
                     continue
 
-                # Recompute corners every change-detected frame for accuracy.
-                # Homography locking caused stale warps when the first frame's
-                # board detection was imprecise.
-                corners = self.board_detector.detect(frame)
-                if corners is None:
-                    frames_without_board += 1
-                    if not board_found and frames_without_board > BOARD_NOT_FOUND_FRAMES:
-                        raise BoardNotFoundError(
-                            f"Board not found in first 30s of '{video_path}'. "
-                            "Ensure the full board with white border is visible."
-                        )
-                    if board_found and frames_without_board > BOARD_LOST_FRAMES:
-                        self._log("board_lost_extended", frame=frame_idx)
-                    continue
+                if locked_H is not None:
+                    # Fixed-camera path: undistort (precomputed maps), then warp
+                    # from the locked corners. Maps are built once, reused per frame.
+                    if cal_maps is None and (cal_k1 or cal_k2):
+                        h0, w0 = frame.shape[:2]
+                        cal_maps = BoardDetector.undistort_maps(h0, w0, cal_k1, cal_k2)
+                    src = (cv2.remap(frame, cal_maps[0], cal_maps[1], cv2.INTER_LINEAR)
+                           if cal_maps is not None else frame)
+                    sz = self.board_detector.warp_size
+                    warped = cv2.warpPerspective(src, locked_H, (sz, sz))
+                    board_found = True
+                    frames_without_board = 0
+                else:
+                    # Recompute corners every change-detected frame for accuracy.
+                    # Homography locking caused stale warps when the first frame's
+                    # board detection was imprecise.
+                    corners = self.board_detector.detect(frame)
+                    if corners is None:
+                        frames_without_board += 1
+                        if not board_found and frames_without_board > BOARD_NOT_FOUND_FRAMES:
+                            raise BoardNotFoundError(
+                                f"Board not found in first 30s of '{video_path}'. "
+                                "Ensure the full board with white border is visible."
+                            )
+                        if board_found and frames_without_board > BOARD_LOST_FRAMES:
+                            self._log("board_lost_extended", frame=frame_idx)
+                        continue
 
-                board_found = True
-                frames_without_board = 0
-                H = self.board_detector.get_homography(corners)
-                warped = self.board_detector.warp(frame, H)
+                    board_found = True
+                    frames_without_board = 0
+                    H = self.board_detector.get_homography(corners)
+                    warped = self.board_detector.warp(frame, H)
 
-                # Apply auto-calibration rotation to align pieces vertically
+                # Apply rotation to align pieces vertically
                 if rotation == 90:
                     warped = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
                 elif rotation == 180:
@@ -189,6 +220,23 @@ class ChessVisionPipeline:
 
         if conf_samples and float(np.mean(conf_samples)) < LOW_CONF_WARN:
             print("WARNING: Low average YOLO confidence. Model may not suit this piece style.")
+
+        # Reliability gate: moves are committed only when the detected board
+        # matches a legal position. Clean footage scores ~59-64/64; noisy
+        # footage (wrong-square detections from oblique angle / lens distortion)
+        # caps at ~50, so its "moves" are mostly laundered detection jitter.
+        # Flag this so the pipeline never silently emits a confident-but-wrong PGN.
+        reliability = state_machine.reliability
+        self._log("reliability", median_match=reliability, moves=n_moves)
+        if reliability is not None and reliability < RELIABILITY_WARN:
+            print(
+                f"WARNING: Low board-match reliability ({reliability:.0f}/64; "
+                f"clean footage scores >={RELIABILITY_WARN}). Detections are landing "
+                f"on the wrong squares, so many of the {n_moves} moves are likely "
+                f"noise. This camera angle needs a model retrained on its own frames "
+                f"(see scripts/extract_cctv_frames.py); threshold tuning cannot "
+                f"separate real moves from jitter at this detection quality."
+            )
 
         pgn_writer.save(output_path)
         return pgn_writer.to_string()

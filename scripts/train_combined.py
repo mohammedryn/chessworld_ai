@@ -13,7 +13,7 @@ def main():
         data=str(BASE / 'models/combined_dataset/data.yaml'),
         epochs=40,
         imgsz=640,
-        batch=8,
+        batch=4,
         device=0,
         project=str(BASE / 'models/training'),
         name='chess_augmented_v1',

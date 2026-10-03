@@ -1,0 +1,21 @@
+{"event": "calibration", "source": "file", "rotation": 270, "k1": 0.15, "border_margin": 0.0}
+{"event": "move", "frame": 222, "uci": "e2e4"}
+{"event": "move", "frame": 2535, "uci": "d7d5"}
+{"event": "move", "frame": 2595, "uci": "e4d5"}
+{"event": "move", "frame": 2919, "uci": "d8d5"}
+{"event": "move", "frame": 3036, "uci": "d2d3"}
+{"event": "move", "frame": 3126, "uci": "e8d8"}
+{"event": "move", "frame": 3594, "uci": "c1e3"}
+{"event": "move", "frame": 3987, "uci": "d5d4"}
+{"event": "move", "frame": 4047, "uci": "e3c1"}
+{"event": "move", "frame": 4107, "uci": "d4d5"}
+{"event": "move", "frame": 4278, "uci": "c2c4"}
+{"event": "move", "frame": 4359, "uci": "d5d3"}
+{"event": "move", "frame": 4419, "uci": "b2b4"}
+{"event": "move", "frame": 4536, "uci": "d3d5"}
+{"event": "move", "frame": 4599, "uci": "d1b3"}
+{"event": "move", "frame": 4833, "uci": "d5d3"}
+{"event": "move", "frame": 4893, "uci": "f1d3"}
+{"event": "move", "frame": 7257, "uci": "b7b5"}
+{"event": "move", "frame": 7326, "uci": "d3f1"}
+{"event": "reliability", "median_match": 48.0, "moves": 19}

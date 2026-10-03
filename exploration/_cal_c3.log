@@ -1,0 +1,13 @@
+{"event": "calibration", "source": "file", "rotation": 90, "k1": -0.15, "border_margin": 0.0}
+{"event": "move", "frame": 957, "uci": "e2e3"}
+{"event": "move", "frame": 1107, "uci": "d7d5"}
+{"event": "move", "frame": 1272, "uci": "d2d4"}
+{"event": "move", "frame": 1992, "uci": "d8d6"}
+{"event": "move", "frame": 2073, "uci": "d1f3"}
+{"event": "move", "frame": 2133, "uci": "c8d7"}
+{"event": "move", "frame": 2193, "uci": "f3d1"}
+{"event": "move", "frame": 2265, "uci": "h7h6"}
+{"event": "move", "frame": 2631, "uci": "f1c4"}
+{"event": "move", "frame": 4071, "uci": "d6c5"}
+{"event": "move", "frame": 4170, "uci": "c4f1"}
+{"event": "reliability", "median_match": 45.0, "moves": 11}

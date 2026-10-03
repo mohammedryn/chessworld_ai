@@ -201,6 +201,23 @@ Scores each combination by occupancy matching against `chess.Board()` starting p
 **Problem:** `auto_label_game3.py` used `cv2.CAP_PROP_FRAME_COUNT` to estimate frames-per-move. Game3 returned 2,921,746 (corrupt metadata), making all 51 frames map to board state index 0 (starting position only).
 **Fix:** Count actual frames by calling `cap.grab()` in a loop before sampling. Then map sample index proportionally across board states: `move_idx = int(i * len(states) / n_samples)`.
 
+### Issue 20: CCTV false-move noise traced to a detection score wall
+
+**Problem:** Run live on ChessWorld AI's CCTV footage (`chess3.mp4`), the pipeline emitted **75 moves** of mostly noise — the black king alone oscillated `f7↔g8` 8+ times, with queen/bishop flickering between adjacent edge squares.
+
+**Investigation:** Built `exploration/diagnose_moves.py` — injects an instrumented state machine into the real pipeline and records, per emitted move, the source/dest squares, edge/adjacency flags, occupancy match score (/64), and squares-changed-since-last-commit. Findings:
+
+- chess3 "moves" change **10–26 squares each** (a real move changes ~2) — the detector reshuffles the whole board and the state machine finds *some* legal move that fits.
+- A clean **score wall** separates the two regimes: game3 (clean ~50° angle) commits moves at **59–64/64**; every noisy video — chess3 (35–49), game1 (32–49), game4 (32–50), game5 (33–43) — is capped at **~50**, because ~14/64 squares are always misplaced by the warp. Nothing scores in 51–58.
+
+**Root cause:** A detection-quality problem, not a state-machine problem. The CCTV warp (oblique angle + IP-camera lens curvature on a soft roll-up board) lands pieces on the wrong squares, so the detected board never cleanly matches a legal position. The permissive `move_threshold=32` (50%) then launders that jitter into legal-but-fake moves.
+
+**Why threshold tuning can't fix it:** Raising `move_threshold` to ~55 to reject chess3's noise also deletes every move from game1/4/5 (all ≤50) — on footage this noisy, real moves score in the same band as jitter. Confirms the long-held note that threshold tuning trades false positives for lost recall. Anti-reversal and temporal-debounce were also ruled out (game3 has a legitimate `f6→e4→f6` reversal; debounce breaks `test_majority_vote_ignores_noisy_frame`).
+
+**Fix shipped (safe, no move-logic change):** Reliability gate. `BoardStateMachine` tracks each accepted move's match score and exposes `reliability` (median). `pipeline.py` warns when the median is below `RELIABILITY_WARN=55`, so the system flags unreliable footage instead of silently emitting a confident-but-wrong PGN. game3 stays silent (median 64) and at 36 moves; all 25 tests stay green.
+
+**Real fix (pending manual labeling):** Retrain on this camera's own frames. `scripts/extract_cctv_frames.py` already produced 120 labelled-ready warps in `training_frames/cctv/`. After retraining, the reliability median is the success metric — it should climb from ~42 toward ~60. Full write-up in `docs/CCTV_NOISE_DIAGNOSIS.md`.
+
 ---
 
 ## 6. Results

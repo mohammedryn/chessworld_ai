@@ -29,7 +29,25 @@ output/debug/
 output/*.jpg
 output/*.mp4
 
+# Videos (keep all source and generated video files out of Git)
+videos/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wmv
+*.flv
+*.m4v
+*.mpg
+*.mpeg
+*.3gp
+*.mts
+*.m2ts
+*.ts
+*.vob
+*.ogv
+
 # IDE
 .vscode/
 .idea/
-

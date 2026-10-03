@@ -111,6 +111,32 @@ class BoardDetector:
         return None
 
     @staticmethod
+    def undistort_maps(h: int, w: int, k1: float, k2: float = 0.0):
+        """Precompute (map_x, map_y) for radial undistortion — build once, reuse.
+
+        Focal length = max(w, h), principal point = image centre. A rough model,
+        but k1 is fit per camera by grid-search calibration, so the absolute
+        scaling is absorbed into the fitted value.
+        """
+        f = float(max(w, h))
+        K = np.array([[f, 0, w / 2.0], [0, f, h / 2.0], [0, 0, 1]], dtype=np.float64)
+        dist = np.array([k1, k2, 0.0, 0.0, 0.0], dtype=np.float64)
+        return cv2.initUndistortRectifyMap(K, dist, None, K, (w, h), cv2.CV_16SC2)
+
+    @staticmethod
+    def undistort(frame: np.ndarray, k1: float, k2: float = 0.0) -> np.ndarray:
+        """One-shot radial undistortion (for calibration). k1=0 is a no-op.
+
+        For per-frame use in a loop, precompute undistort_maps() once and call
+        cv2.remap() instead — undistort() rebuilds the maps every call.
+        """
+        if not k1 and not k2:
+            return frame
+        h, w = frame.shape[:2]
+        map_x, map_y = BoardDetector.undistort_maps(h, w, k1, k2)
+        return cv2.remap(frame, map_x, map_y, cv2.INTER_LINEAR)
+
+    @staticmethod
     def detect_inner_board(warped: np.ndarray) -> tuple[int, int, float, float]:
         """Auto-detect actual chess square boundaries in a warped 640×640 image.
 
